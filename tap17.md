@@ -36,16 +36,18 @@ The specification adopted will be the SSL Signing Spec 0.1, as linked above. As
 such, we defer to that document to describe the specifics of signature
 generation and verification.
 
-The envelope's `payloadType` is `application/vnd.tuf+json` for all TUF roles.
-This means that the payload is expected to be a JSON file with a
-`_type` field identifying the specific role.
+The envelope's `payloadType` is `application/vnd.tuf+EXT` for all TUF roles,
+where `EXT` indicates the extension based on the metaformat. For example, TUF's
+reference implementation uses JSON by default, and would therefore use
+`application/vnd.tuf+json`. This means that the payload is expected to be a JSON
+file with a `_type` field identifying the specific role.
 
 The envelope's `payload` is the JSON serialization of the message, equivalent to
 the `signed` object in the current format.
 
 ## Pseudocode
 
-Implementations should process the authentication layer as follows:
+The reference implementation should process the authentication layer as follows:
 
 Inputs:
 
@@ -63,7 +65,8 @@ Steps:
 *   If `envelope.payload` exists (new-style envelope):
     *  If `payloadType` != `application/vnd.tuf+json`, raise error
     *  `preauthEncoding` := PAE(UTF8(`envelope.payloadType`),
-        `envelope.payload`) as per signing-spec
+        `envelope.payload`) as per
+        [signing-spec](https://github.com/secure-systems-lab/signing-spec/blob/master/protocol.md#signature-definition)
     *  `signers` := set of `name` for which Verify(`preauthEncoding`,
         `signature.sig`, `publicKey`) succeeds, for all combinations of
         (`signature`) in `envelope.signatures` and (`name`, `publicKey`) in
@@ -82,10 +85,10 @@ Steps:
 
 # Motivation
 
-TUF's sister project, in-toto, reused the current signature envelope to maximize
-code reuse. Both projects currently use the same crypto provider. However, the
-current envelope is detailed in both projects, and as time has shown, keeping
-them synchronized has been difficult.
+TUF's sister project, in-toto, reused TUF's current signature envelope to
+maximize code reuse. Both projects currently use the same crypto provider.
+However, the current envelope is detailed in both projects, and as time has
+shown, keeping them synchronized has been difficult.
 
 Further, due to interactions in both communities, the signature envelopes have
 evolved to better fit their use cases. Adopting a common source of truth, i.e.,
