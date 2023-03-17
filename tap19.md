@@ -13,13 +13,13 @@
 
 # Abstract
 
-This TAP proposes extending TUF to content addressed applications and
-ecosystems. These systems typically have non-file representations of objects
-with specific hashing routines. This document describes how TUF implementations
-can adopt these hashing routines and the properties these content addressed
-systems must have to ensure their hash values are robust. Some popular
-content addressed ecosystems or applications are Git, IPFS, and OSTree, while
-these semantics are also visible elsewhere such as in containers.
+This TAP explores how TUF can be adapted to content addressed ecosystems that
+have in-built integrity checks for their artifacts. While the TUF specification
+supports verifying artifact integrity, it also describes many other semantics
+such as key distribution and the ability to delegate trust to different
+entities. Essentially, content addressed systems such as Git, IPFS, and OSTree
+have artifact integrity capabilities which can be complemented by all of TUF's
+other features.
 
 # Motivation
 
@@ -28,31 +28,17 @@ around the assumption that the artifacts being distributed are "regular"
 files. However, emerging applications and ecosystems that defy this assumption
 can still greatly benefit from TUF's security properties.
 
-Content addressed systems are those in which objects are addressed and accessed
-by hashes of their content rather than by reference, such as their location. A
-common paradigm used to achieve content addressability is to represent objects
-via a Merkle Tree or Directed Acyclic Graph (DAG). A Merkle Tree is a hash-based
-data structure where the leaf nodes are identified by the hash of their data and
-non-leaf nodes are identified by the hash of their child nodes. A Merkle DAG is
-similar, except non-leaf nodes can be associated with some data instead of just
-the leaf nodes. Also, an instance of a Merkle DAG does not need to be balanced
-and each node can have several parents. Essentially, Merkle DAGs offer more
-freedom than typical Merkle Trees.
-
-Both data structures are used in various applications today. Perhaps the most
-ubiquitous is Git. They are also used in other ecosystems like the
-Interplanetary File System (IPFS). In IPFS, files are addressed and accessed by
-the hashes of their content rather than by reference, using their location. Any
-file can exist at some specified location, but much stronger claims can be made
-about a file identified by its hash.
-
-These two systems are the driving use cases of this TAP and therefore the
-specification uses Merkle DAG semantics to describe its changes. Further, from
-the perspective of this TAP, there are no differences to how objects of these
-data structures are handled. As a result, the terms "tree" and "DAG" are used
-interchangeably throughout this document to refer to an instance of a Merkle
-Tree or DAG. Additionally, "Merkle object" refers to a node in a Merkle Tree or
-DAG.
+Content addressed systems are those in which objects are addressed or identified
+by a function of their contents. Typically, each artifact is addressed using a
+cryptographic hash of its contents. Due to this characteristic, these systems
+typically enforce the verification of artifact integrity intrinsically. Some
+examples of content addressed systems are Git and the Interplanetary File System
+(IPFS). In Git, if some object with a particular content address is overwritten
+in the Git object store, any operations that _use_ the corrupted object fail
+because of a hash mismatch. IPFS provides interfaces to store artifacts at which
+point their hashes are calculated. These hashes can then be used to fetch the
+corresponding artifacts from IPFS. Similar to Git, a corruption of an object in
+the store results in failures when attempting to use that artifact.
 
 ## Use Case 1: Open Law Library's The Archive Framework
 
@@ -71,21 +57,7 @@ as Targets.
 
 ## Use Case 2: IPFS as a Backend for Targets
 
-IPFS builds on a variety of other technologies to provide a peer-to-peer
-protocol that can store and transfer files. Files are broken up into multiple
-blocks that are part of a Merkle DAG. Each file is identified by either the
-root node when there are multiple blocks, or a single node that also contains
-the data of the file.
-
-Adding support for IPFS to TUF allows developers to distribute files stored on
-IPFS as opposed to traditional servers and distributed via HTTP. This can be
-achieved in two manners: by abstracting the delivery protocol, and by treating
-IPFS nodes as targets rather than the files they represent.
-
-TUF is already protocol agnostic, so merely having IPFS as an alternative
-protocol for repository backends requires few or no changes to TUF metadata.
-On the other hand, directly recording IPFS nodes brings it in line with other
-attempts to record non-traditional, Merkle DAG targets such as TAF.
+TODO: John?
 
 ## Use Case 3: Distributing Artifacts Using OSTree
 
@@ -99,54 +71,54 @@ One key use of OSTree is for packaging and distribution operations. With
 OSTree, a package manager can distribute an entire filesystem tree. In some
 cases, such a tree can be the artifact itself, say an operating system image,
 but OSTree also makes it possible to distribute multiple artifacts using a
-single identifier--that of the root of the tree. The entire directory structure
-uses a Merkle tree under the hood.
+single identifier--that of the root of the tree.
 
 # Specification
 
-The key differences between regular file targets and content addressable
-objects such as Merkle DAG nodes are in how their hashes are computed and how
-the TUF verification workflow applies to them. As such, the key focus of this
-document is to articulate what is required to design a TUF implementation
-capable of recording Merkle objects. This TAP considers two content addressed
-systems that both use Merkle DAGs--Git and the Interplanetary Filesystem (IPFS).
-These systems differ significantly in the type of data each Merkle node
-represents. In Git, each node in the DAG represents a _commit_, or a record of
-changes made, while in IPFS, each DAG node represents a file, or the root of a
-tree of nodes that collectively represent a file. These systems are different
-enough to ensure the contents of this TAP can apply to multiple types of Merkle
-Tree or DAG systems not explicitly considered here.
+The TUF specification uses file hashes in a number of contexts. All Targets
+metadata entries are expected to record hashes of the corresponding entries
+using one or more algorithms. Snapshot metadata records the hashes of all
+Targets metadata considered valid at the time of its issuance, and Timestamp
+metadata points to the currently valid Snapshot metadata file. In each of these
+contexts, TUF operates with the assumption that the artifacts whose hashes are
+recorded are regular files.
+
+If these artifacts, TUF metadata or otherwise, were stored in a content
+addressed system instead, they would each already be associated with a unique
+identifier by that system created using the content of the artifact. Typically,
+the identifier is a hash calculated using an ecosystem-specific representation
+of the artifact. For examples, see the [motivating examples](#motivation).
+
+TUF can directly use these identifiers in its metadata instead of requiring
+users to calculate separate hash values. As TUF's metadata is agnostic to the
+hashing routine employed, this change does not require a change to the schema of
+how hashes are recorded. That said, TUF metadata will need to be updated to
+indicate the ecosystem in question.
 
 Presently, each entry in TUF's targets metadata has two key parts--the
 identification of the target, and the characteristics of the target.
-Incorporating Merkle objects will require consideration to both of these
-aspects, as well as to how they are handled during verification.
 
 ## Identifying the Target
 
-Currently, file targets are identified by a path that is relative to the
-repository's base URL. As discussed before, a Merkle DAG is a hash-based data
-structure, so every node is associated with a hash value. Therefore, as the
-identifier of each node is ecosystem specific, the strategy used to identify a
-target node will vary accordingly.
+As TUF is centered around regular file artifacts, each entry uses a path that is
+relative to the repository's base URL. In content addressed systems, the name is
+not as straightforward, and can instead be ecosystem specific. For example, in
+the Git use case, the entry's name can identify the repository and the Git ref
+the entry applies to.
 
-In order to support different Merkle DAG ecosystems, this TAP proposes using
-RFC 3986's URI structure for the target identifier. This has the following
-structure.
+Therefore, the entry must clearly identify the ecosystem it pertains to. This
+TAP proposes using RFC 3986's URI structure for the entry's identifier.
 
 ```
 <scheme>:<hier-part>
 ```
 
-The `scheme` contains a token that uniquely identifies the Merkle DAG ecosystem
-while `hier-part` contains the location or identifier of the specific target.
-
-For example, every Git repository contains a Merkle DAG, in which every node is
-a commit object, and each commit has a unique identifier generated using SHA-1.
-So, when the Merkle DAG in question is that of a Git repository, the target
-identifier may point to the repository as a whole or perhaps a specific branch
-or tag within it. The details of a Git-specific implementation of this TAP
-must be communicated using a POUF.
+The `scheme` contains a token that uniquely identifies the ecosystem while
+`hier-part` contains the location or identifier of the specific target. In the
+Git example, the `scheme` may be `git` and the `hier-part` can indicate the
+repository and other information. Note that the specifics of how this TAP
+applies to Git repositories must be recorded in the corresponding POUF, this
+document does not formally specify how it applies to any particular ecosystem.
 
 ```
 git:<repo identifier>
@@ -154,24 +126,9 @@ git:<repo identifier>?branch=<branch name>
 git:<repo identifier>?tag=<tag name>
 ```
 
-On the other hand, IPFS introduces the concept of locating arbitrary artifacts
-by their content, rather than by a particular location. When a file is added to
-IPFS, it is then available at an endpoint that uses the cryptographic hash of
-its contents. In this instance, it makes sense to use this identifier in TUF
-metadata.
-
-```
-ipfs:<node identifier>
-```
-
-It is important to note that a file can encompass multiple nodes in the IPFS
-Merkle DAG, and in such situations, the identifier should be the root node
-which points to the other nodes that make up the file.
-
-As noted above, this TAP considers these ecosystems at a high level to
-demonstrate the proposed changes. More detailed descriptions of how to record
-Git or IPFS artifacts considering various use and edge cases must be published
-as a POUF dedicated to each ecosystem.
+If an ecosystem only relies on hash identifiers, the `hier-part` can record that
+directly. In these instances, the `hashes` field may be omitted. As before, this
+must be unambiguously described in the ecosystem's POUF.
 
 ## Recording the Characteristics of the Target
 
@@ -185,72 +142,26 @@ In the current TUF specification, each target entry has the following format:
 }
 ```
 
-The opaque `custom` field requires no change to make this TAP possible.
+The opaque `custom` field requires no explicit changes. An ecosystem may choose
+to define some specific fields within it, and this must be communicated in the
+corresponding POUF.
 
 The `length` field is an integer that captures the length in bytes of the
-target. While this is straightforward for files, it can be more complicated to
-define what the length of Merkle DAG objects are. This field may also be
-entirely dropped if there is no clear value for a particular ecosystem. The
-corresponding POUF must provide a clear direction for populating (or not) this
-field.
+target. This field may or may not be relevant, depending on the ecosystem. The
+POUF must specify how `length` is to be parsed.
 
-The `hashes` field points to a dictionary object that captures the
-cryptographic hashes of the target in one or more algorithms. While vital for
-targets that are regular files, in the case of Merkle DAG objects, the
-identifier self certifies the contents associated with the node. Thus, this
-self certifying value can be used as the hash for the object.
-
-In the case of Git, this field can contain the identifier of the commit at the
-tip of the branch in question. When this repository is fetched by the client
-during verification, receiving the commit with the specific identifier is akin
-to receiving a file with a particular recorded hash. However, this requires a
-degree of trust in the hash computation mechanism built into the Git
-implementations used while recording the hash and verifying on the client.
-
-For recording artifacts stored in IPFS, a similar approach, in which the
-content identifier is computed by the system, can be used. This identifier is
-not the same as the hash of the artifact itself, but rather identifies the root
-node of the subgraph used to represent the artifact. When using this
-identifier, it is also important to be aware of, and to account for, the
-multibase representation used. Multibase, a protocol that can disambiguate the
-encoding used for base-encoded text, is used by IPFS for its hash values. The
-same hash value can have multiple distinct representations, depending on the
-base. If an implementation of this TAP is directly using the values provided by
-IPFS , it is important to note or choose a specific base or encoding to avoid
-confusion in the future. The `custom` field can be used to communicate these
-configuration choices for each object.
-
-Also, it is important to remember that the "multihash" system used by IPFS is
-“crypto-agile,” meaning its  content identifying system is not locked into one
-cryptographic hash algorithm. As TUF is similarly designed, and does not
-mandate a particular hash algorithm, its metadata structure allows for any
-number of hashes to be recorded for every target. This can be leveraged when
-multiple hash values exist for a particular target.
-
-As before, the specific details associated with recording characteristics of an
-artifact are left to the POUF detailing the implementation of the corresponding
-ecosystem or application.
+Similarly, the `hashes` field me be unnecessary if the target identifier
+directly uses the ecosystem's hash value. Once again, the ecosystem's POUF must
+specify how `hashes` is to be parsed.
 
 ## Verifying the Target
 
-The verification workflow also depends on the application or ecosystem to
-validate hash values. In a well designed application or ecosystem, nodes with
-invalid identifiers should not be allowed to exist without causing errors. Git
-is an example of such an ecosystem. If a commit object no longer matches the
-claimed hash value, the main Git implementations immediately flag the issue,
-essentially halting all operations that can apply to the corrupted object.
-
-In such an ecosystem, the ability for a node to legally exist in the system with
-its identifier being recomputable for its data is equivalent to verifying a
-given file has a particular hash value, as in the current TUF verification
-workflow. An example of a robust application is in the
-[appendix](#appendix-ideal-application-behaviour).
-
-This delegates some trust to the implementation. In situations where this is
-not ideal, the node hash can be calculated manually as part of the verification
-process as well. Continuing with the example of Git, the hashes of all nodes
-can be verified as part of the verification process. This is also demonstrated
-in the [appendix](#appendix-ideal-application-behaviour).
+As this TAP applies to content addressed systems which enforce artifact
+integrity protections, verification of a target in the TUF sense is limited to
+all of TUF's checks in the specification except the hash verification of the
+artifact. Instead, the ecosystem is responsible for verifying artifact integrity
+at the time of use of the artifact. Examples of these checks are presented in
+the [appendix](#appendix-application-behavior).
 
 # Rationale
 
@@ -265,84 +176,45 @@ and widely accepted method, to point to different resources. Thus, URIs are an
 ideal choice when an identifier must clearly specify the specific system of a
 particular target, while also locating the object in question.
 
-## Use of Self Certified Hash Values
+## Relinquishing Artifact Integrity Checks
 
-A key change proposed in this TAP is the use of hash values calculated by
-individual content addressed systems such Merkle DAG applications or ecosystems
-rather than those generated by the developers using TUF. Yet, as discussed in
-the security analysis, as long as the application is careful with its selection
-of hash algorithms, the only critical element in this change is how the hash
-values are used in the verification workflow. It is vital to always remember
-that the hash calculation is no longer directly controlled by the developer. As
-a consequence, audits of the mechanism must be regularly performed rather than
-blindly trusting the application in question.
-
-This may not always be possible--the application in question may not be open
-source or not auditable for other reasons. In these situations, it is highly
-recommended that the developers not take self certified hashes at face value.
-
-It is also not necessary to take an application or ecosystem at face value.
-Instead, the TUF implementation in use can be extended to interface with the
-application, re-implementing the hashing mechanism used to record the target's
-hashes. What this means is that the TUF implementation uses the application's
-hashing mechanisms rather than reinventing the wheel. This ensures that for a
-given cryptographic hash algorithm, there are not multiple values for a given
-object.
-
-This is not a concern for regular files because when computing their hashes,
-the inputs can only be structured in one way--the files themselves. This is not
-the case for more abstract object representations that exist in content
-addressed systems such as those of Merkle DAG applications. It is possible to
-use the characteristics of a Merkle DAG node in multiple ways when computing its
-hash. In order to avoid confusion, this TAP specifies using the existing hashing
-routine as long as it is robust and secure.
+The most significant change proposed in this TAP is the transfer of artifact
+integrity verification from TUF to the ecosystem. This has major implications
+for TUF's security guarantees and it can be catastrophic if the TAP is applied
+to an ecosystem without strong integrity validation properties. The
+[security analysis](#security-analysis) covers the basics of how an ecosystem
+this TAP applies to computes artifact hashes for verifying their integrity.
 
 # Security Analysis
 
 There are several considerations to be made when this TAP is applied in
 practice.
 
-## Auditing Hash Computation
+## Auditing Ecosystems and their Hash Computation Routines
 
-Hash calculation is the biggest change proposed in this TAP. In TUF, the
-developers distributing the targets control the hash algorithms used and the
-actual computation. On the other hand, this TAP recommends using the node's
-identifier, which is itself a hash, instead of recording a new hash. This
-transfers the control to the _application_. Note that if the distributor also
-controls the application, this is not a concern.
+As noted before, content addressable systems typically use cryptographic hashes
+over the contents of artifacts. A system that is a legitimate candidate for this
+TAP must be thoroughly audited to validate its hash computation routines and
+artifact integrity checks. Developers are also urged to monitor the development
+of the ecosystem itself to ensure the assumptions of strong artifact integrity
+validations continue to hold.
 
-Yet, this conditional solution will not always be true. So, it is important to
-consider several factors when choosing to record content addressed objects as
-targets. As always, the algorithm or hashing routine used should result in
-**unique** hashes for distinct objects. Two distinct objects should under no
-circumstances share a hash value. Further, the hash value should be
-**repeatable**. During verification, the hash values of the nodes are not
-necessarily _explicitly_ calculated by the TUF client. Instead, the client
-checks that a node exists in the respective system with the hash and expects the
-system to detect if some other node is masquerading using the provided hash.
-Therefore, the client should not recognize the same node with a different hash
-when all other parameters such as the algorithm used are the same. A poorly
-written implementation may compute one hash at the repository and expect a
-different hash on the client, considering the original hash invalid on the
-client. The systems considered in this TAP, Git and IPFS, do not have this
-problem, but this is one hypothetical issue to be considered when evaluating
-other ecosystems.
+The hash algorithm must result in **unique** hashes for distinct objects.
+Further, the hash value should be **repeatable**. For any artifact, the
+algorithm should always generate the same hash value. These properties matter to
+hash algorithms selected by TUF implementations performing artifact integrity
+checks and so they must also exist in the content addressed ecosystem.
 
 ## Unavailable Resources
 
 The availability of targets in a content addressed context is no different from
 that of regular files. For the metadata to be signed, the specific object must
-be available from the corresponding source. Similarly, verification of the
-metadata is contingent on actually receiving the resource in question--here,
-that takes the form of the specified nodes being present on the client
-post-fetch.
+be available from the corresponding source.
 
 # Adoption Considerations
 
-While this TAP goes into detail about handling Git and IPFS, it should be
-possible to apply the same techniques to other robust content addressable
-systems. There are several factors to consider as an adopter looking to
-implement this TAP.
+There are several factors to consider as an adopter looking to implement this
+TAP.
 
 ## Applicability of the TAP
 
@@ -350,21 +222,21 @@ An important aspect of applying the ideas in this TAP is ensuring the target
 system is indeed content addressable.  This TAP is **not**, for example,
 generalizable to all version control systems (VCSs). Consider Subversion (SVN),
 an alternative to Git. Like Git, SVN has a concept of recording changes which it
-calls _revisions_. However, SVN **does not** use a Merkle DAG to store these
-revisions. Instead, each revision is identified by an auto-incrementing integer,
-one more than the previous revision. This identifier does not make any claims
-about the specific changes in the revision. Indeed, the identifier is entirely
-disconnected from the contents of the changes contained in the corresponding
-revision, and using it as a self certified value of a revision as prescribed in
-this document for Git is **dangerous**, entirely undermining the security
-properties offered by TUF.
+calls _revisions_. However, SVN **does not** use a content addressed store for
+these revisions. Instead, each revision is identified by an auto-incrementing
+integer, one more than the previous revision. This identifier does not make any
+claims about the specific changes in the revision. Indeed, the identifier is
+entirely disconnected from the contents of the changes contained in the
+corresponding revision, and using it as a self certified value of a revision as
+prescribed in this document for Git is **dangerous**, entirely undermining the
+security properties offered by TUF.
 
 Implementers must be therefore very careful with adopting this TAP for a new
 system. They must be familiar with the characteristic properties of content
 addressable systems. If they are implementing this TAP for an existing system
-they do directly control, they must thoroughly and regularly
-[audit the hash computation](#auditing-hash-computation) mechanisms used by the
-system.
+they do not directly control, they must thoroughly and regularly
+[audit the system](#auditing-ecosystems-and-their-hash-computation-routines)
+mechanisms used by the system.
 
 ## Registering a Scheme for New Applications
 
@@ -402,16 +274,17 @@ This document has been placed in the public domain.
 
 # References
 
-* [Merkle Trees](https://xlinux.nist.gov/dads/HTML/MerkleTree.html)
 * [RFC 3986 - Uniform Resource Identifier (URI): Generic Syntax](https://tools.ietf.org/html/rfc3986)
 * [Interplanetary Filesystem](https://ipfs.io/)
-* [IPFS Merkle DAGs](https://docs.ipfs.io/concepts/merkle-dag/)
 * [IPFS Content Addressing](https://docs.ipfs.io/concepts/content-addressing/)
 * [IPFS Hashing](https://docs.ipfs.io/concepts/hashing/)
-* [Multibase](https://github.com/multiformats/multibase)
-* [Multihash](https://github.com/multiformats/multihash)
 
-# Appendix: Ideal Application Behaviour
+# Appendix: Application Behavior
+
+In this appendix, we consider how our example ecosystems enforce artifact
+integrity.
+
+## Git
 
 For example, consider what happens when a Git commit is manually overwritten
 with different information.
@@ -481,3 +354,7 @@ used in a significant operation, its hash is checked against the contents. As
 such, attempting to `git checkout` a commit that has been tampered with, for
 example, will result in an error. On the other hand, viewing it via `git log`,
 `git show`, and `git cat-file` will not result in an error.
+
+## IPFS
+
+TODO: John?
