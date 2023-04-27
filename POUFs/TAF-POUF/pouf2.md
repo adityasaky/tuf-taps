@@ -26,27 +26,46 @@ for metadata generation, it implicitly depends on the reference implementation
 POUF’s protocols.
 
 Metadata and target files are stored in a git repository referred to as an
-authentication repository.  An authentication repository contains information
+authentication repository. An authentication repository contains information
 needed to securely clone and update other git repositories (referred to as
 target repositories), including their URLs and additional custom data that can
 be used by TAF's implementers. This is specified in special target files,
 `repositories.json` and `mirrors.json` - regular TUF  target files (whose
-lengths and hashes are stored in `targets.json` and are signed by the top-level
+lengths and hashes are stored in `targets.json` and which are signed by the top-level
 targets role) which are of special importance to TAF.
 
-A client downloads an authentication repository and all of the referenced
-repositories by running TAF’s updater and specifying the authentication
-repository’s URL. Repositories are cloned and updated using git. The updater
+Information stored in TAF's metadata and target files is strictly related
+to individual git repositories and not their content. The system was designed
+with the purpose of recording valid commits of an authentication repository's
+target repositories, which makes it possible to detect unauthorized pushes.
+Validation of the actual content of the repository is delegated to Git.
+
+Git still strongly relies on SHA-1 for checking the integrity of file objects and commits,
+even though it has been proven that this hash function is vulnerable to the collision attack.
+Researchers used a technique called SHAttered to demonstrate that two PDFs with different content
+can have the same hash, and argued that "two Git repositories with the same
+head commit hash and different contents, say, a benign source code and a backdoored one".
+TAF stores verified URLs of its target repositories, so an attacker cannot trick the system
+into cloning a target repository from a different location.
+Additionally, Git's original author noted that Git doesn't just hash the data, it prepends
+a type/length field to it, which makes Git harder to attack than a PDF. Furthermore,
+Git and providers that use it, like GitHub, have implemented detections that prevent
+known attacks from being carried out. With that being said, for the time being,
+the convenience of relying on Git to ensure validity of a repository's content
+outweighs the risks, but it is important to periodically re-evaluate this statement.
+
+
+In order to take advantage of TAF's validations, a client can download an authentication
+repository and all of the referenced repositories by running TAF’s updater and specifying
+the authentication repository’s URL. Repositories are cloned and updated using git. The updater
 runs validation before permanently storing anything on the client’s machine:
 *   An authentication repository is cloned as a bare repository inside the
     user’s temp directory (so no worktree is checked out)
 *   This repository is then validated. Metadata and target files are read using
     `git show`
 *   If validation is successful, the repository is cloned/new changes are
-    pulled, once again using git
+    pulled, once again using Git
 
-Once the git repository is pulled, the metadata files can be read from disk. TAF
-does not support downloading single metadata files from remote locations.
 
 # Operations
 
