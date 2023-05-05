@@ -34,25 +34,35 @@ be used by TAF's implementers. This is specified in special target files,
 lengths and hashes are stored in `targets.json` and which are signed by the top-level
 targets role) which are of special importance to TAF.
 
-Information stored in TAF's metadata and target files is strictly related
-to individual git repositories and not their content. The system was designed
-with the purpose of recording valid commits of an authentication repository's
-target repositories, which makes it possible to detect unauthorized pushes.
-Validation of the actual content of the repository is delegated to Git.
+The current version of TAF focuses on protecting git repositories from unauthorized pushes.
+The system was initially designed with the purpose of recording valid commits of an
+authentication repository's target repositories. If an attacker managed to compromise GitHub
+account of a user who has write access to protected repositories and created new commits,
+TAF would detect this by comparing these new commits to a list of valid commits specified
+in the authentication repository. In order to register these new commits, the attacker would
+have to modify TUF metadata files too. Unless they also gain access to `targets` or `root` keys,
+they cannot do this without the attempt being detected by TAF - which relies on TUF for there checks.
+TAF's users are encouraged to store `target` and `root` on their YubiKeys and make sure they are safe.
 
-Git still strongly relies on SHA-1 for checking the integrity of file objects and commits,
-even though it has been proven that this hash function is vulnerable to the collision attack.
-Researchers used a technique called SHAttered to demonstrate that two PDFs with different content
-can have the same hash, and argued that "two Git repositories with the same
+On the other hand, the current version of TAF does not keep track of the content of these target
+repositories (files kept in them, as opposed to commit hashes). It relies on Git to ensure integrity
+of these files. Git, however, still strongly relies on SHA-1, even though it has been proven that this
+hash function is vulnerable to the collision attack. Researchers used a technique called SHAttered to demonstrate
+that two PDFs with different content can have the same hash, and argued that "two Git repositories with the same
 head commit hash and different contents, say, a benign source code and a backdoored one".
-TAF stores verified URLs of its target repositories, so an attacker cannot trick the system
-into cloning a target repository from a different location.
-Additionally, Git's original author noted that Git doesn't just hash the data, it prepends
-a type/length field to it, which makes Git harder to attack than a PDF. Furthermore,
-Git and providers that use it, like GitHub, have implemented detections that prevent
-known attacks from being carried out. With that being said, for the time being,
-the convenience of relying on Git to ensure validity of a repository's content
-outweighs the risks, but it is important to periodically re-evaluate this statement.
+TAF stores verified URLs of its target repositories, which mitigates the risk.
+managed to gain access to the original repositories, they could potentially exploit the SHA-1 weaknesses.
+
+Attacking Git is harder than attacking a PDF, since it prepends a type/length filed to the hashed data.
+Additionally, Git and providers that use it, like GitHub, have implemented detections that prevent
+known attacks from being carried out. That being said, it can be expected that it will only get easier
+to attack Git repositories in the future and unless Git transitions to a more secure hashing algorithm,
+a system that overly relies on Git is vulnerable too. The reason why TAF opted for this approach is that
+it was designed with the intention of protecting repositories that could contain millions of files.
+Storing information about every single one of these files (and of multiple such repositories) in an authentication
+repository would negatively impact performance and readability. With the risk of taking advantage of SHA-1
+vulnerabilities to compromise Git repositories still being low, TAF is still mainly focused only on
+detecting commits created by attackers. However, long term plans include revision of this decision.
 
 
 In order to take advantage of TAF's validations, a client can download an authentication
