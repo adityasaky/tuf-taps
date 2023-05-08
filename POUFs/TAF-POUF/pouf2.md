@@ -31,28 +31,31 @@ needed to securely clone and update other git repositories (referred to as
 target repositories), including their URLs and additional custom data that can
 be used by TAF's implementers. This is specified in special target files,
 `repositories.json` and `mirrors.json` - regular TUF  target files (whose
-lengths and hashes are stored in `targets.json` and which are signed by the top-level
-targets role) which are of special importance to TAF.
+lengths and hashes are stored in `targets.json` and which are signed by the
+top-level targets role) which are of special importance to TAF.
 
-The current version of TAF focuses on protecting git repositories from unauthorized pushes.
-The system was initially designed with the purpose of recording valid commits of an
-authentication repository's target repositories. If an attacker managed to compromise GitHub
-account of a user who has write access to protected repositories and created new commits,
-TAF would detect this by comparing these new commits to a list of valid commits specified
-in the authentication repository. In order to register these new commits, the attacker would
-have to modify TUF metadata files too. Unless they also gain access to `targets` or `root` keys,
-they cannot do this without the attempt being detected by TAF - which relies on TUF for there checks.
-TAF's users are encouraged to store `target` and `root` on their YubiKeys and make sure they are safe.
+TAF focuses on protecting git repositories from unauthorized pushes. It is
+designed to record valid commits for target repositories in the authentication
+repository. If an attacker manages to compromise a user who has write access to
+protected repositories and creates new commits, TAF will detect this by
+comparing these new commits to a list of valid commits specified in the
+authentication repository. In order to register these new commits, the attacker
+has to modify TUF metadata files as well. Unless they also gain access to
+`targets` or `root` keys, they cannot do this without the attempt being
+detected by TAF. TAF's users are encouraged to store signing keys for the
+`target` and `root` roles offline on hardware tokens to ensure their safety.
 
-On the other hand, the current version of TAF does not keep track of the content of these target
-repositories (files kept in them, as opposed to commit hashes). It relies on Git to ensure integrity
-of these files. Git, however, still strongly relies on SHA-1, even though it has been proven that this
-hash function is vulnerable to the collision attack. Researchers used a technique called SHAttered to demonstrate
-that two PDFs with different content can have the same hash, and argued that "two Git repositories with the same
-head commit hash and different contents, say, a benign source code and a backdoored one".
-TAF stores verified URLs of its target repositories, which mitigates the risk.
-managed to gain access to the original repositories, they could potentially exploit the SHA-1 weaknesses.
+In essence, while TAF ensures the validity of commits in target repositories,
+it makes no claims about the integrity of their contents. TAF relies on Git's
+default artifact integrity protection. Git, however, still primarily relies on
+SHA-1, even though it has been proven that this hash function is vulnerable to
+collision attacks. If an attacker manages to gain access to the original target
+repositories, they could potentially exploit the SHA-1 weakness. As TAF stores
+verified URLs of its target repositories, users are protected from _mirrors_ of
+legitimate repositories presenting a colliding artifact in place of the
+original artifact.
 
+<!--
 Attacking Git is harder than attacking a PDF, since it prepends a type/length filed to the hashed data.
 Additionally, Git and providers that use it, like GitHub, have implemented detections that prevent
 known attacks from being carried out. That being said, it can be expected that it will only get easier
@@ -63,12 +66,14 @@ Storing information about every single one of these files (and of multiple such 
 repository would negatively impact performance and readability. With the risk of taking advantage of SHA-1
 vulnerabilities to compromise Git repositories still being low, TAF is still mainly focused only on
 detecting commits created by attackers. However, long term plans include revision of this decision.
+-->
 
 
-In order to take advantage of TAF's validations, a client can download an authentication
-repository and all of the referenced repositories by running TAF’s updater and specifying
-the authentication repository’s URL. Repositories are cloned and updated using git. The updater
-runs validation before permanently storing anything on the client’s machine:
+In order to take advantage of TAF's validations, a client can download an
+authentication repository and all of the referenced repositories by running
+TAF’s updater and specifying the authentication repository’s URL. Repositories
+are cloned and updated using git. The updater runs validation before
+permanently storing anything on the client’s machine:
 *   An authentication repository is cloned as a bare repository inside the
     user’s temp directory (so no worktree is checked out)
 *   This repository is then validated. Metadata and target files are read using
@@ -88,26 +93,26 @@ repository - initialize a TUF repository (generate TUF metadata files and sign
 them using offline keys, either loaded from the filesystem or YubiKeys) and
 commit the changes. TAF contains a command line interface which can be used to
 create and update authentication repositories (add new target files and signing
-keys, extend expiration dates of metadata files, generate keystore files and set
-up YubiKeys). For example, a new authentication repository can be created using
-the `taf repo create repo_path` command. Detailed explanation and instructions
-are available in the official documentation
+keys, extend expiration dates of metadata files, generate keystore files and
+set up YubiKeys). For example, a new authentication repository can be created
+using the `taf repo create repo_path` command. Detailed explanation and
+instructions are available in the official documentation
 https://github.com/openlawlibrary/taf/blob/master/docs/quickstart.md.
 
-TAF's main purpose is to provide archival authentication, which means that it is
-not only the current state of the repositories that is validated - correctness
-of all past versions needs to be checked as well. A state is valid if the
-authentication repository at a certain revision (commit) is a valid TUF
+TAF's main purpose is to provide archival authentication, which means that it
+is not only the current state of the repositories that is validated -
+correctness of all past versions needs to be checked as well. A state is valid
+if the authentication repository at a certain revision (commit) is a valid TUF
 repository and target repositories are valid according to the data defined in
-the authentication repository. So, if `targets.json` is updated, `snapshot.json`
-and `timestamp.json` need to be updated in the same commit or the repository
-will not be valid. This ensures that a client cannot check out an invalid
-version of the repository. Moreover, validation of the authentication repository
-also ensures that versions of metadata files in older revisions are lower than
-in newer revisions.  Once the metadata and target files are validated, they are
-used to check correctness of the referenced git repositories - do actual commits
-in those repositories correspond to the commits listed in the authentication
-repository.
+the authentication repository. So, if `targets.json` is updated,
+`snapshot.json` and `timestamp.json` need to be updated in the same commit or
+the repository will not be valid. This ensures that a client cannot check out
+an invalid version of the repository. Moreover, validation of the
+authentication repository also ensures that versions of metadata files in older
+revisions are lower than in newer revisions.  Once the metadata and target
+files are validated, they are used to check correctness of the referenced git
+repositories - do actual commits in those repositories correspond to the
+commits listed in the authentication repository.
 
 To sum up, TAF extends the reference implementation by storing the metadata and
 target files in a git repository and making sure that all changes are committed
@@ -115,15 +120,15 @@ after every valid update.
 
 # Formats
 
-The metadata generated to support Git repositories are largely the same as those
-described in the TUF specification and POUF-1. The key difference is in the
-enumeration of Targets.
+The metadata generated to support Git repositories are largely the same as
+those described in the TUF specification and POUF-1. The key difference is in
+the enumeration of Targets.
 
 Firstly, while TUF identifies individual targets by their location relative to
 the mirror’s base URL, this POUF uses a URI to identify the specific Git
-namespace in a target repository. This URI is also used to locate the repository
-itself. The URI must use `git` as the scheme, clearly indicating that the entry
-pertains to a Git object.
+namespace in a target repository. This URI is also used to locate the
+repository itself. The URI must use `git` as the scheme, clearly indicating
+that the entry pertains to a Git object.
 
 For metadata of some repository, a Targets entry is expected to map to a
 specific Git branch or tag. For each entry, whether a branch or a tag, a hash
@@ -134,11 +139,11 @@ the hash afresh for a particular Git reference, the identifier of the commit at
 the tip of the branch or that the tag points to must be used.
 
 Apart from the hashes and custom field, a Targets entry is also expected to
-record the length of the artifact. This length is vital in avoiding endless data
-attacks. However, there is no clear mapping of a length for a particular commit
-object. Therefore, for Git specific implementations, the length field may be
-omitted. However, implementations are free to choose sane limits for how much
-data is fetched when pulling from a Git repository.
+record the length of the artifact. This length is vital in avoiding endless
+data attacks. However, there is no clear mapping of a length for a particular
+commit object. Therefore, for Git specific implementations, the length field
+may be omitted. However, implementations are free to choose sane limits for how
+much data is fetched when pulling from a Git repository.
 
 # Security Audit
 
