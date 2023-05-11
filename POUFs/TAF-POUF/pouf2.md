@@ -55,20 +55,6 @@ verified URLs of its target repositories, users are protected from _mirrors_ of
 legitimate repositories presenting a colliding artifact in place of the
 original artifact.
 
-<!--
-Attacking Git is harder than attacking a PDF, since it prepends a type/length filed to the hashed data.
-Additionally, Git and providers that use it, like GitHub, have implemented detections that prevent
-known attacks from being carried out. That being said, it can be expected that it will only get easier
-to attack Git repositories in the future and unless Git transitions to a more secure hashing algorithm,
-a system that overly relies on Git is vulnerable too. The reason why TAF opted for this approach is that
-it was designed with the intention of protecting repositories that could contain millions of files.
-Storing information about every single one of these files (and of multiple such repositories) in an authentication
-repository would negatively impact performance and readability. With the risk of taking advantage of SHA-1
-vulnerabilities to compromise Git repositories still being low, TAF is still mainly focused only on
-detecting commits created by attackers. However, long term plans include revision of this decision.
--->
-
-
 In order to take advantage of TAF's validations, a client can download an
 authentication repository and all of the referenced repositories by running
 TAF’s updater and specifying the authentication repository’s URL. Repositories
