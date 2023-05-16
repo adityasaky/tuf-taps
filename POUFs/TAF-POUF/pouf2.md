@@ -50,10 +50,14 @@ it makes no claims about the integrity of their contents. TAF relies on Git's
 default artifact integrity protection. Git, however, still primarily relies on
 SHA-1, even though it has been proven that this hash function is vulnerable to
 collision attacks. If an attacker manages to gain access to the original target
-repositories, they could potentially exploit the SHA-1 weakness. As TAF stores
-verified URLs of its target repositories, users are protected from _mirrors_ of
-legitimate repositories presenting a colliding artifact in place of the
-original artifact.
+repositories, they could potentially exploit the SHA-1 weakness. On the other hand,
+authentication repositories store lists of valid URLs of target repositories,
+ensuring that users are protected from _mirrors_ of legitimate repositories presenting
+a colliding artifact in place of the original artifact. These URLs are defined manually
+and can only be modified by someone who has a `targets` key. If a target repository
+is not owned by the same person or organization that is setting up an authentication
+repository, it is a hard requirement to directly contact the owner who will be
+able to confirm authenticity of the repository in question.
 
 In order to take advantage of TAF's validations, a client can download an
 authentication repository and all of the referenced repositories by running
